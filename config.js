@@ -1,7 +1,7 @@
 // Drive Sentry: shared constants. Bump VERSION and BUILD_LABEL on every upload
 // so you can tell on the phone which build you are looking at.
-export const VERSION = '0.1.0';
-export const BUILD_LABEL = 'Phase 1, build 1';
+export const VERSION = '0.1.1';
+export const BUILD_LABEL = 'Phase 1, build 2';
 
 export const KEYS = {
   settings: 'ds.settings',

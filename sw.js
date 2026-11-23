@@ -1,6 +1,6 @@
 // Network first, so a fresh upload shows up as soon as you are online.
 // The cache is only a fallback. Keep CACHE in step with config.js when you bump the version.
-const CACHE = 'drive-sentry-0.1.0-b1';
+const CACHE = 'drive-sentry-0.1.1-b2';
 const FILES = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'app.js', 'config.js', 'storage.js', 'device.js', 'camera.js', 'ui.js', 'calibration.js', 'settings.js',

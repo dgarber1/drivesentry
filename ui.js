@@ -15,7 +15,7 @@ export function setVersionText(text) {
 }
 
 // The strip sits on the left edge. It fades after a few seconds; a tap on the edge brings it back.
-export function initStrip({ onGear, onMute }) {
+export function initStrip({ onGear, onMute, onPower }) {
   const strip = $('#strip');
   let timer = null;
   const hide = () => strip.classList.remove('visible');
@@ -27,6 +27,7 @@ export function initStrip({ onGear, onMute }) {
   $('#edge').addEventListener('pointerdown', show);
   $('#btn-gear').addEventListener('click', onGear);
   $('#btn-mute').addEventListener('click', () => { show(); onMute(); });
+  $('#btn-power').addEventListener('click', onPower);
   return { show, hide };
 }
 
@@ -34,8 +35,10 @@ export function setMuted(muted) {
   const btn = $('#btn-mute');
   btn.setAttribute('aria-pressed', String(muted));
   btn.setAttribute('aria-label', muted ? 'Unmute alerts' : 'Mute alerts');
-  $('#icon-sound').hidden = muted;
-  $('#icon-muted').hidden = !muted;
+  btn.classList.toggle('is-muted', muted);
+  // SVG elements ignore the .hidden property, so toggle the attribute directly.
+  $('#icon-sound').toggleAttribute('hidden', muted);
+  $('#icon-muted').toggleAttribute('hidden', !muted);
 }
 
 export function setLight(state, label) {

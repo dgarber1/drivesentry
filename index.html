@@ -29,6 +29,11 @@
 <div class="screen" id="camera-ui" data-screen="camera" hidden>
   <div id="edge" aria-hidden="true"></div>
   <nav id="strip" class="visible" aria-label="Drive Sentry controls">
+    <button class="strip-btn" id="btn-power" aria-label="Turn Drive Sentry off">
+      <span class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>
+      </span>
+    </button>
     <button class="strip-btn" id="btn-gear" aria-label="Settings">
       <span class="chip">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -37,7 +42,7 @@
     <button class="strip-btn" id="btn-mute" aria-label="Mute alerts" aria-pressed="false">
       <span class="chip">
         <svg id="icon-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
-        <svg id="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>
+        <svg id="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 1 5.5"/><path d="M3 3l18 18"/></svg>
       </span>
     </button>
     <div id="light" data-state="warn" role="img" aria-label="Starting camera"></div>
@@ -50,10 +55,24 @@
     <h1>Drive Sentry</h1>
     <p class="lead">Assistive only. The driver stays responsible.</p>
     <p>Drive Sentry is a driving aid, not a replacement for your attention. It can miss lanes, vehicles, and hazards, and it can warn you when nothing is wrong.</p>
-    <p>Set it up while parked. Mount your phone so it never blocks your view of the road.</p>
+    <p>Set it up while parked. Mount your phone horizontally (landscape) and level, where it never blocks your view of the road.</p>
   </div>
   <div class="sheet-actions">
     <button class="btn primary" id="btn-accept">I understand</button>
+    <p class="version"></p>
+  </div>
+</section>
+
+<!-- Off: camera and alerts stopped -->
+<section class="screen sheet" data-screen="off" hidden>
+  <div class="sheet-body">
+    <h1>Drive Sentry is off</h1>
+    <p class="lead warn-red">You are not being warned.</p>
+    <p>The camera and alerts are stopped. Tap Turn on when you’re ready to drive.</p>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn primary" id="btn-turn-on">Turn on</button>
+    <button class="btn" id="btn-off-settings">Settings</button>
     <p class="version"></p>
   </div>
 </section>
@@ -158,17 +177,20 @@
   </div>
   <aside class="cal-panel">
     <div class="cal-scroll">
-      <h1>Calibrate</h1>
+      <div class="cal-banner">
+        <svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="40" height="20" rx="3"/><path d="M40 16h.01"/></svg>
+        <strong>Phone must be horizontal and level</strong>
+      </div>
+      <div class="tilt">
+        <div class="tilt-row" id="tilt-side"><span>Level</span><b>…</b></div>
+        <div class="tilt-row" id="tilt-aim"><span>Aim</span><b>…</b></div>
+        <p id="tilt-hint"></p>
+      </div>
       <ol class="steps">
-        <li>Mount the phone sideways near the middle of the windshield, level.</li>
+        <li>Mount it horizontally (landscape) near the middle of the windshield. Keep it level, not tilted left or right.</li>
         <li>Drag the amber line to the horizon, where the far road meets the sky.</li>
         <li>Drag the white line to the front edge of your hood, or the bottom of the road view if you can’t see it.</li>
       </ol>
-      <div class="tilt">
-        <div class="tilt-row" id="tilt-side"><span>Side tilt</span><b>…</b></div>
-        <div class="tilt-row" id="tilt-aim"><span>Camera aim</span><b>…</b></div>
-        <p id="tilt-hint"></p>
-      </div>
     </div>
     <div class="cal-actions">
       <button class="btn primary" id="btn-cal-save">Save</button>
@@ -177,7 +199,7 @@
   </aside>
 </section>
 
-<div id="rotate"><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M3 9a9 9 0 0 1 4-5M21 15a9 9 0 0 1-4 5"/></svg><h2>Turn your phone sideways</h2><p>Drive Sentry works in landscape.</p></div></div>
+<div id="rotate"><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M3 9a9 9 0 0 1 4-5M21 15a9 9 0 0 1-4 5"/></svg><h2>Turn your phone horizontal</h2><p>Drive Sentry works in landscape. Mount it horizontal and level.</p></div></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script type="module" src="app.js"></script>

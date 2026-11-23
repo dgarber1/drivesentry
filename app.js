@@ -24,6 +24,7 @@ const camera = createCamera($('#cam'), (state) => {
     blocked: ['bad', 'Camera blocked'],
     frozen: ['bad', 'Camera picture stopped'],
     error: ['bad', 'Camera stopped'],
+    idle: ['off', 'Drive Sentry is off'],
   }[state.status] || ['warn', 'Camera not running'];
   setLight(light[0], light[1]);
   setBlocked(['blocked', 'frozen', 'error'].includes(state.status) ? state.status : null);
@@ -80,8 +81,35 @@ async function startCamera() {
   }
 }
 
+// ---------- On / off ----------
+// Off stops the camera and the alerts, and lets the screen sleep.
+function turnOff() {
+  camera.stop();
+  device.releaseAwake();
+  showScreen('off');
+}
+
+// Back to whichever main screen fits: the driving view, or the off screen.
+function showMain() {
+  if (camera.getStatus() === 'idle') {
+    showScreen('off');
+  } else {
+    showScreen('camera');
+    strip.show();
+  }
+}
+
+async function ensureCameraOn() {
+  if (camera.getStatus() !== 'idle') return true;
+  const ok = await camera.start();
+  if (!ok) { showCameraProblem(camera.getStatus()); return false; }
+  device.keepAwake();
+  return true;
+}
+
 // ---------- Control strip ----------
 const strip = initStrip({
+  onPower: turnOff,
   onGear: () => { showScreen('settings'); settingsScreen.open(); },
   onMute: () => {
     settings = { ...settings, muted: !settings.muted };
@@ -96,7 +124,7 @@ setMuted(settings.muted);
 const calibrationScreen = initCalibration({
   getSaved: () => calibration,
   onSave: (c) => { calibration = c; store.saveCalibration(c); },
-  onClose: () => { showScreen('camera'); strip.show(); },
+  onClose: showMain,
   toast,
 });
 
@@ -125,8 +153,8 @@ const settingsScreen = initSettings({
         : 'Not calibrated yet',
     };
   },
-  onDone: () => { showScreen('camera'); strip.show(); },
-  onCalibrate: openCalibration,
+  onDone: showMain,
+  onCalibrate: async () => { if (await ensureCameraOn()) openCalibration(); },
   onRestartCamera: () => { device.enterDrivingMode(); startCamera(); },
   onInstall: () => device.promptInstall(),
 });
@@ -136,7 +164,7 @@ function prepareStartScreen(permission) {
   const granted = permission === 'granted';
   $('#start-title').textContent = granted ? 'Ready to drive' : 'Allow the camera';
   $('#start-text').textContent = granted
-    ? 'Mount your phone near the middle of the windshield, then tap Start.'
+    ? 'Mount your phone horizontally (landscape) and level, near the middle of the windshield, then tap Start.'
     : 'Drive Sentry uses your camera to watch the road. Video is processed on your phone and is never uploaded or saved. Your phone will ask for camera permission next.';
   $('#btn-start').textContent = granted ? 'Start' : 'Allow camera and start';
   $('#start-install').hidden = device.isInstalled();
@@ -161,6 +189,8 @@ $('#btn-accept').addEventListener('click', () => {
   device.enterDrivingMode(); // this tap lets the browser go full screen
   goStart();
 });
+$('#btn-turn-on').addEventListener('click', () => { device.enterDrivingMode(); startCamera(); });
+$('#btn-off-settings').addEventListener('click', () => { showScreen('settings'); settingsScreen.open(); });
 $('#btn-start').addEventListener('click', () => { device.enterDrivingMode(); startCamera(); });
 $('#btn-denied-retry').addEventListener('click', () => { device.enterDrivingMode(); startCamera(); });
 $('#btn-retry').addEventListener('click', async () => {

@@ -4,6 +4,7 @@ let wakeSentinel = null;
 let wakeState = 'unknown';        // unknown | on | off | unsupported | refused
 let orientationState = 'unknown'; // unknown | locked | open
 let deferredInstall = null;
+let releasingOnPurpose = false;
 
 export function onDeviceChange(fn) { listeners.add(fn); }
 function emit() { listeners.forEach((fn) => fn()); }
@@ -44,10 +45,21 @@ export async function keepAwake() {
   try {
     wakeSentinel = await navigator.wakeLock.request('screen');
     wakeState = 'on';
-    wakeSentinel.addEventListener('release', () => { wakeState = 'off'; emit(); });
+    wakeSentinel.addEventListener('release', () => { if (!releasingOnPurpose) wakeState = 'off'; emit(); });
   } catch {
     wakeState = 'refused';
   }
+  emit();
+}
+
+// Let the screen sleep again (used when Drive Sentry is switched off).
+export async function releaseAwake() {
+  if (!wakeSentinel) return;
+  releasingOnPurpose = true;
+  try { await wakeSentinel.release(); } catch { /* already released */ }
+  wakeSentinel = null;
+  wakeState = 'unknown';
+  releasingOnPurpose = false;
   emit();
 }
 
