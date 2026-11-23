@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Drive Sentry</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-screen="boot" data-blocked="false">
+
+<video id="cam" playsinline muted autoplay></video>
+
+<!-- Red message when the camera is blocked, frozen, or stopped -->
+<div id="blocked" role="alert" aria-live="assertive">
+  <div class="blocked-card">
+    <h2 id="blocked-title"></h2>
+    <p id="blocked-text"></p>
+    <button class="btn primary" id="btn-retry" hidden>Retry camera</button>
+  </div>
+</div>
+
+<!-- Driving view: camera plus a thin control strip on the left edge -->
+<div class="screen" id="camera-ui" data-screen="camera" hidden>
+  <div id="edge" aria-hidden="true"></div>
+  <nav id="strip" class="visible" aria-label="Drive Sentry controls">
+    <button class="strip-btn" id="btn-gear" aria-label="Settings">
+      <span class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </span>
+    </button>
+    <button class="strip-btn" id="btn-mute" aria-label="Mute alerts" aria-pressed="false">
+      <span class="chip">
+        <svg id="icon-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
+        <svg id="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>
+      </span>
+    </button>
+    <div id="light" data-state="warn" role="img" aria-label="Starting camera"></div>
+  </nav>
+</div>
+
+<!-- First launch: disclaimer -->
+<section class="screen sheet" data-screen="disclaimer" hidden>
+  <div class="sheet-body">
+    <h1>Drive Sentry</h1>
+    <p class="lead">Assistive only. The driver stays responsible.</p>
+    <p>Drive Sentry is a driving aid, not a replacement for your attention. It can miss lanes, vehicles, and hazards, and it can warn you when nothing is wrong.</p>
+    <p>Set it up while parked. Mount your phone so it never blocks your view of the road.</p>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn primary" id="btn-accept">I understand</button>
+    <p class="version"></p>
+  </div>
+</section>
+
+<!-- Ready / camera permission -->
+<section class="screen sheet" data-screen="start" hidden>
+  <div class="sheet-body">
+    <h1 id="start-title">Ready to drive</h1>
+    <p id="start-text"></p>
+    <p class="note" id="start-install" hidden>For full screen and a locked landscape view, install Drive Sentry first. In Chrome, tap the ⋮ menu, then Install app, and open it from your home screen.</p>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn primary" id="btn-start">Start</button>
+    <p class="version"></p>
+  </div>
+</section>
+
+<!-- Camera denied or unavailable -->
+<section class="screen sheet" data-screen="denied" hidden>
+  <div class="sheet-body">
+    <h1 id="denied-title">Camera access is off</h1>
+    <p id="denied-text"></p>
+    <ol class="steps" id="denied-steps"></ol>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn primary" id="btn-denied-retry">Try again</button>
+    <p class="version"></p>
+  </div>
+</section>
+
+<!-- Browser can't run the app -->
+<section class="screen sheet" data-screen="unsupported" hidden>
+  <div class="sheet-body">
+    <h1>Can’t open the camera here</h1>
+    <p>Drive Sentry needs a secure web address (https) and a browser with camera access.</p>
+    <p>Open your Drive Sentry link in Chrome on your phone. If you opened a file directly, use the GitHub Pages link instead.</p>
+  </div>
+  <div class="sheet-actions"><p class="version"></p></div>
+</section>
+
+<!-- Settings (use while parked) -->
+<section class="screen settings" data-screen="settings" hidden>
+  <header>
+    <h1>Settings</h1>
+    <button class="btn primary" id="btn-settings-done">Done</button>
+  </header>
+  <p class="note">Change these while parked.</p>
+
+  <div class="rows">
+    <div class="row">
+      <div class="label"><h2>Alert sound</h2><p>Voice says what’s wrong. Tones are short beeps.</p></div>
+      <div class="seg" data-setting="sound" role="group" aria-label="Alert sound">
+        <button data-value="voice">Voice</button>
+        <button data-value="tones">Tones</button>
+        <button data-value="both">Both</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="label"><h2>Sensitivity</h2><p>Low gives fewer false alarms.</p></div>
+      <div class="seg" data-setting="sensitivity" role="group" aria-label="Sensitivity">
+        <button data-value="low">Low</button>
+        <button data-value="medium">Medium</button>
+        <button data-value="high">High</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="label"><h2>Units</h2><p>For speed and distance.</p></div>
+      <div class="seg" data-setting="units" role="group" aria-label="Units">
+        <button data-value="mph">mph</button>
+        <button data-value="kmh">km/h</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="label"><h2>Camera calibration</h2><p id="cal-summary"></p></div>
+      <button class="btn" id="btn-calibrate">Calibrate</button>
+    </div>
+  </div>
+  <p class="note">Sound, sensitivity, and units are saved now and take effect once alerts are added.</p>
+
+  <h2 class="group-title">Status</h2>
+  <dl class="status">
+    <div class="kv"><dt>Camera</dt><dd id="info-camera"></dd></div>
+    <div class="kv"><dt>Picture check</dt><dd id="info-view"></dd></div>
+    <div class="kv"><dt>Screen</dt><dd id="info-awake"></dd></div>
+    <div class="kv"><dt>Orientation</dt><dd id="info-orientation"></dd></div>
+    <div class="kv"><dt>Full screen</dt><dd id="info-screen"></dd></div>
+    <div class="kv"><dt>App</dt><dd><span id="info-install"></span> <button class="btn small" id="btn-install" hidden>Install</button></dd></div>
+    <div class="kv"><dt>Version</dt><dd id="info-version"></dd></div>
+  </dl>
+  <div class="settings-actions"><button class="btn" id="btn-restart-camera">Restart camera</button></div>
+</section>
+
+<!-- Calibration: drag the two lines over the live picture -->
+<section class="screen" id="screen-calibration" data-screen="calibration" hidden>
+  <div id="cal-field">
+    <div class="cal-line" id="line-horizon" data-kind="horizon">
+      <span class="cal-tag">Horizon</span><span class="cal-grip"></span>
+    </div>
+    <div class="cal-line" id="line-hood" data-kind="hood">
+      <span class="cal-tag">Front of hood</span><span class="cal-grip"></span>
+    </div>
+  </div>
+  <aside class="cal-panel">
+    <div class="cal-scroll">
+      <h1>Calibrate</h1>
+      <ol class="steps">
+        <li>Mount the phone sideways near the middle of the windshield, level.</li>
+        <li>Drag the amber line to the horizon, where the far road meets the sky.</li>
+        <li>Drag the white line to the front edge of your hood, or the bottom of the road view if you can’t see it.</li>
+      </ol>
+      <div class="tilt">
+        <div class="tilt-row" id="tilt-side"><span>Side tilt</span><b>…</b></div>
+        <div class="tilt-row" id="tilt-aim"><span>Camera aim</span><b>…</b></div>
+        <p id="tilt-hint"></p>
+      </div>
+    </div>
+    <div class="cal-actions">
+      <button class="btn primary" id="btn-cal-save">Save</button>
+      <button class="btn" id="btn-cal-close">Do this later</button>
+    </div>
+  </aside>
+</section>
+
+<div id="rotate"><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M3 9a9 9 0 0 1 4-5M21 15a9 9 0 0 1-4 5"/></svg><h2>Turn your phone sideways</h2><p>Drive Sentry works in landscape.</p></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
