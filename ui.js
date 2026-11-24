@@ -61,20 +61,37 @@ const BLOCKED_COPY = {
     text: 'Another app may have taken the camera. Drive Sentry can’t watch the road right now.',
     retry: true,
   },
+  detector: {
+    title: 'Vehicle detection isn’t working',
+    text: 'Drive Sentry can’t spot vehicles right now.',
+    retry: true,
+  },
 };
 
 let lastBlocked = null;
 
-export function setBlocked(kind) {
+let currentBlocked = null;
+export const getBlockedKind = () => currentBlocked;
+
+// kind: blocked | frozen | error | detector. detail: extra explanation (shown for detector).
+export function setBlocked(kind, detail = '') {
   const copy = kind ? BLOCKED_COPY[kind] : null;
+  currentBlocked = copy ? kind : null;
   document.body.dataset.blocked = copy ? 'true' : 'false';
   if (copy) {
     $('#blocked-title').textContent = copy.title;
-    $('#blocked-text').textContent = copy.text;
+    $('#blocked-text').textContent = detail ? `${copy.text} ${detail}` : copy.text;
     $('#btn-retry').hidden = !copy.retry;
+    $('#btn-retry').textContent = kind === 'detector' ? 'Retry detection' : 'Retry camera';
     if (kind !== lastBlocked && navigator.vibrate) navigator.vibrate([200, 100, 200]);
   }
   lastBlocked = copy ? kind : null;
+}
+
+// A small pill at the top edge for non-urgent messages (never over the middle of the screen).
+export function setNotice(text) {
+  document.body.dataset.notice = text ? 'true' : 'false';
+  $('#notice').textContent = text || '';
 }
 
 let toastTimer = null;

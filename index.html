@@ -15,6 +15,9 @@
 <body data-screen="boot" data-blocked="false">
 
 <video id="cam" playsinline muted autoplay></video>
+<canvas id="overlay" aria-hidden="true"></canvas>
+<div id="notice" role="status" aria-live="polite"></div>
+<input type="file" id="file-input" accept="video/*" hidden>
 
 <!-- Red message when the camera is blocked, frozen, or stopped -->
 <div id="blocked" role="alert" aria-live="assertive">
@@ -149,12 +152,17 @@
       <div class="label"><h2>Camera calibration</h2><p id="cal-summary"></p></div>
       <button class="btn" id="btn-calibrate">Calibrate</button>
     </div>
+    <div class="row">
+      <div class="label"><h2>Detection test</h2><p>Check detection speed and heat while parked.</p></div>
+      <button class="btn" id="btn-dettest">Open</button>
+    </div>
   </div>
   <p class="note">Sound, sensitivity, and units are saved now and take effect once alerts are added.</p>
 
   <h2 class="group-title">Status</h2>
   <dl class="status">
     <div class="kv"><dt>Camera</dt><dd id="info-camera"></dd></div>
+    <div class="kv"><dt>Vehicle detection</dt><dd id="info-detection"></dd></div>
     <div class="kv"><dt>Picture check</dt><dd id="info-view"></dd></div>
     <div class="kv"><dt>Screen</dt><dd id="info-awake"></dd></div>
     <div class="kv"><dt>Orientation</dt><dd id="info-orientation"></dd></div>
@@ -195,6 +203,37 @@
     <div class="cal-actions">
       <button class="btn primary" id="btn-cal-save">Save</button>
       <button class="btn" id="btn-cal-close">Do this later</button>
+    </div>
+  </aside>
+</section>
+
+<!-- Detection test: live numbers, 20-minute test, video file -->
+<section class="screen" id="screen-dettest" data-screen="dettest" hidden>
+  <aside class="cal-panel">
+    <div class="cal-scroll">
+      <h1 class="dt-title">Detection test</h1>
+      <p class="note" id="dt-mode">Live camera</p>
+      <dl class="status compact">
+        <div class="kv"><dt>Engine</dt><dd id="dt-engine"></dd></div>
+        <div class="kv"><dt>Model load</dt><dd id="dt-load"></dd></div>
+        <div class="kv"><dt>Speed now</dt><dd id="dt-fps"></dd></div>
+        <div class="kv"><dt>Average / lowest</dt><dd id="dt-avg"></dd></div>
+        <div class="kv"><dt>Per detection</dt><dd id="dt-ms"></dd></div>
+        <div class="kv"><dt>Boxes</dt><dd id="dt-boxes"></dd></div>
+        <div class="kv"><dt>Heat</dt><dd id="dt-heat"></dd></div>
+        <div class="kv"><dt>Battery</dt><dd id="dt-battery"></dd></div>
+      </dl>
+      <p class="note">For the 20-minute test, plug the phone in and keep Drive Sentry open.</p>
+      <div class="dt-tools">
+        <button class="btn small" id="btn-dt-reset">Reset numbers</button>
+        <button class="btn small" id="btn-dt-file">Video file</button>
+        <button class="btn small" id="btn-dt-copy">Copy log</button>
+      </div>
+      <textarea id="dt-log" readonly rows="6" wrap="off" placeholder="The test log appears here."></textarea>
+    </div>
+    <div class="cal-actions">
+      <button class="btn primary" id="btn-dt-run">20-minute test</button>
+      <button class="btn" id="btn-dt-close">Close</button>
     </div>
   </aside>
 </section>

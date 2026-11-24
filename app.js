@@ -1,11 +1,15 @@
-// Drive Sentry, Phase 1: camera shell. No detection or alerts yet.
+// Drive Sentry, Phase 2: camera shell plus AI vehicle detection. No lane detection or alerts yet.
 import { VERSION, BUILD_LABEL } from './config.js';
 import * as store from './storage.js';
 import { createCamera, cameraPermission } from './camera.js';
 import * as device from './device.js';
-import { showScreen, setVersionText, initStrip, setMuted, setLight, setBlocked, toast } from './ui.js';
+import { showScreen, setVersionText, initStrip, setMuted, setLight, setBlocked, setNotice, getBlockedKind, toast } from './ui.js';
 import { initCalibration } from './calibration.js';
 import { initSettings } from './settings.js';
+import { createOverlay } from './overlay.js';
+import { createPerf } from './perf.js';
+import { createDetection } from './detection.js';
+import { initDetTest } from './dettest.js';
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -18,17 +22,53 @@ setVersionText(`Version ${VERSION} (${BUILD_LABEL})`);
 // ---------- Camera ----------
 const camera = createCamera($('#cam'), (state) => {
   cameraState = state;
-  const light = {
-    ok: ['ok', 'Camera working'],
-    starting: ['warn', 'Starting camera'],
-    blocked: ['bad', 'Camera blocked'],
-    frozen: ['bad', 'Camera picture stopped'],
-    error: ['bad', 'Camera stopped'],
-    idle: ['off', 'Drive Sentry is off'],
-  }[state.status] || ['warn', 'Camera not running'];
-  setLight(light[0], light[1]);
-  setBlocked(['blocked', 'frozen', 'error'].includes(state.status) ? state.status : null);
+  refreshStatus();
 });
+
+// ---------- Vehicle detection ----------
+const perf = createPerf();
+const overlay = createOverlay($('#overlay'));
+let detState = { phase: 'off', reason: '', backend: '', loadMs: 0, boxes: 0, fps: 0 };
+let fileTest = null; // { name, url } while a recorded video is run through the detector
+
+const detection = createDetection({
+  video: $('#cam'),
+  overlay,
+  perf,
+  // Detect only on the driving view and the test screen, and only with a good picture.
+  shouldRun: () => ['camera', 'dettest'].includes(document.body.dataset.screen) && (!!fileTest || cameraState.status === 'ok'),
+  onState: (s) => {
+    detState = s;
+    refreshStatus();
+    dettest.noteState(s);
+  },
+});
+
+// One place decides what the status light, the red message, and the top notice say.
+function refreshStatus() {
+  const cam = cameraState.status;
+  const camBad = !fileTest && ['blocked', 'frozen', 'error'].includes(cam);
+  const detFailed = detState.phase === 'failed';
+
+  if (camBad) setBlocked(cam);
+  else if (detFailed) setBlocked('detector', detState.reason);
+  else setBlocked(null);
+
+  let light;
+  if (camBad) light = ['bad', 'Camera problem'];
+  else if (detFailed) light = ['bad', 'Vehicle detection failed'];
+  else if (!fileTest && cam === 'idle') light = ['off', 'Drive Sentry is off'];
+  else if (!fileTest && cam === 'starting') light = ['warn', 'Starting camera'];
+  else if (detState.phase === 'loading') light = ['warn', 'Loading vehicle detection'];
+  else if (detState.phase === 'slow') light = ['warn', 'Vehicle detection is slow'];
+  else if (detState.phase === 'running') light = ['ok', 'Camera and detection working'];
+  else light = ['warn', 'Vehicle detection is off'];
+  setLight(light[0], light[1]);
+
+  if (detState.phase === 'loading' && !camBad) setNotice('Loading vehicle detection…');
+  else if (detState.phase === 'slow' && !camBad) setNotice(`Detection is running slowly (${Math.round(detState.fps)} per second)`);
+  else setNotice(null);
+}
 
 const DENIED_COPY = {
   denied: {
@@ -58,6 +98,7 @@ const DENIED_COPY = {
 };
 
 function showCameraProblem(kind) {
+  detection.stop();
   const copy = DENIED_COPY[kind] || DENIED_COPY.error;
   $('#denied-title').textContent = copy.title;
   $('#denied-text').textContent = copy.text;
@@ -75,6 +116,7 @@ async function startCamera() {
     return;
   }
   device.keepAwake();
+  detection.start();
   if (!calibration && !store.wasCalibrationPrompted()) {
     store.setCalibrationPrompted();
     openCalibration();
@@ -84,6 +126,7 @@ async function startCamera() {
 // ---------- On / off ----------
 // Off stops the camera and the alerts, and lets the screen sleep.
 function turnOff() {
+  detection.stop();
   camera.stop();
   device.releaseAwake();
   showScreen('off');
@@ -104,6 +147,7 @@ async function ensureCameraOn() {
   const ok = await camera.start();
   if (!ok) { showCameraProblem(camera.getStatus()); return false; }
   device.keepAwake();
+  detection.start();
   return true;
 }
 
@@ -144,8 +188,18 @@ const settingsScreen = initSettings({
       frozen: 'Picture stopped', error: 'Stopped', idle: 'Off',
     }[cameraState.status] || 'Off';
     const s = cameraState.sample;
+    const ds = detection.getState();
+    const fps = Math.round(ds.fps);
+    const detectionText = ({
+      off: 'Off',
+      loading: 'Loading the model…',
+      running: `Running at ${fps} per second (${ds.backend})`,
+      slow: `Slow, ${fps} per second (${ds.backend})`,
+      failed: `Failed: ${ds.reason}`,
+    })[ds.phase] || 'Off';
     return {
       ...d,
+      detection: detectionText,
       camera: cameraText,
       view: cameraState.status === 'idle' ? '–' : `brightness ${Math.round(s.mean)}, detail ${Math.round(s.spread)}`,
       calibration: calibration
@@ -155,8 +209,51 @@ const settingsScreen = initSettings({
   },
   onDone: showMain,
   onCalibrate: async () => { if (await ensureCameraOn()) openCalibration(); },
+  onDetTest: async () => { if (await ensureCameraOn()) { showScreen('dettest'); dettest.open(); } },
   onRestartCamera: () => { device.enterDrivingMode(); startCamera(); },
   onInstall: () => device.promptInstall(),
+});
+
+// ---------- Detection test screen ----------
+function enterFileTest(file) {
+  if (fileTest) URL.revokeObjectURL(fileTest.url);
+  fileTest = { name: file.name, url: URL.createObjectURL(file) };
+  camera.stop(); // the camera is off while a recorded video runs through the detector
+  const v = $('#cam');
+  v.srcObject = null;
+  v.src = fileTest.url;
+  v.loop = true;
+  v.muted = true;
+  v.play().catch(() => {});
+  perf.reset();
+  detection.start();
+  refreshStatus();
+  dettest.refresh();
+}
+
+async function exitFileTest() {
+  if (!fileTest) return;
+  URL.revokeObjectURL(fileTest.url);
+  fileTest = null;
+  const v = $('#cam');
+  v.pause();
+  v.removeAttribute('src');
+  v.loop = false;
+  v.load();
+  refreshStatus();
+  if (await ensureCameraOn()) perf.reset();
+  dettest.refresh();
+}
+
+const dettest = initDetTest({
+  perf,
+  getDetection: () => detection.getState(),
+  isFileMode: () => !!fileTest,
+  getFileName: () => (fileTest ? fileTest.name : ''),
+  onPickFile: enterFileTest,
+  onExitFile: exitFileTest,
+  onClose: async () => { await exitFileTest(); showMain(); },
+  toast,
 });
 
 // ---------- First-run flow ----------
@@ -194,6 +291,7 @@ $('#btn-off-settings').addEventListener('click', () => { showScreen('settings');
 $('#btn-start').addEventListener('click', () => { device.enterDrivingMode(); startCamera(); });
 $('#btn-denied-retry').addEventListener('click', () => { device.enterDrivingMode(); startCamera(); });
 $('#btn-retry').addEventListener('click', async () => {
+  if (getBlockedKind() === 'detector') { detection.retry(); return; }
   const ok = await camera.start();
   if (!ok) showCameraProblem(camera.getStatus());
 });

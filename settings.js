@@ -3,7 +3,7 @@ import { VERSION, BUILD_LABEL } from './config.js';
 
 const $ = (selector) => document.querySelector(selector);
 
-export function initSettings({ getSettings, updateSettings, getInfo, onDone, onCalibrate, onRestartCamera, onInstall }) {
+export function initSettings({ getSettings, updateSettings, getInfo, onDone, onCalibrate, onDetTest, onRestartCamera, onInstall }) {
   const segs = document.querySelectorAll('.seg');
   let timer = null;
 
@@ -21,6 +21,7 @@ export function initSettings({ getSettings, updateSettings, getInfo, onDone, onC
     const info = getInfo();
     $('#cal-summary').textContent = info.calibration;
     $('#info-camera').textContent = info.camera;
+    $('#info-detection').textContent = info.detection;
     $('#info-view').textContent = info.view;
     $('#info-awake').textContent = info.awake;
     $('#info-orientation').textContent = info.orientation;
@@ -45,6 +46,7 @@ export function initSettings({ getSettings, updateSettings, getInfo, onDone, onC
 
   $('#btn-settings-done').addEventListener('click', () => { clearInterval(timer); onDone(); });
   $('#btn-calibrate').addEventListener('click', () => { clearInterval(timer); onCalibrate(); });
+  $('#btn-dettest').addEventListener('click', () => { clearInterval(timer); onDetTest(); });
   $('#btn-restart-camera').addEventListener('click', () => { clearInterval(timer); onRestartCamera(); });
   $('#btn-install').addEventListener('click', onInstall);
 
