@@ -100,7 +100,7 @@ async function detect(m) {
   const out = await runModel();
   const t2 = performance.now();
 
-  const detections = Postprocess.process(out.data, out.dims, size, bw, bh, m.minScore);
+  const detections = Postprocess.process(out.data, out.dims, size, bw, bh, m.thresholds);
   const t3 = performance.now();
 
   self.postMessage({

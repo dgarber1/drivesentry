@@ -44,13 +44,13 @@ export function createDetector() {
       });
     },
     // bitmap is handed to the worker. Resolves to { detections, timing }.
-    detect(bitmap, minScore) {
+    detect(bitmap, thresholds) {
       if (dead) { bitmap.close(); return Promise.reject(dead); }
       return new Promise((resolve, reject) => {
         const id = nextId++;
         const timer = setTimeout(() => failAll(new Error('Detection stopped responding.')), DETECT_TIMEOUT_MS);
         pending.set(id, { resolve, reject, timer });
-        worker.postMessage({ type: 'detect', id, bitmap, minScore }, [bitmap]);
+        worker.postMessage({ type: 'detect', id, bitmap, thresholds }, [bitmap]);
       });
     },
     dispose() {

@@ -1,11 +1,11 @@
 // Pages and scripts: network first, so a fresh upload shows up as soon as you are online.
 // The model file and the AI library never change for a given version, so they are cached
 // after the first download and used from then on. Keep CACHE in step with config.js.
-const CACHE = 'drive-sentry-0.2.0-b1';
+const CACHE = 'drive-sentry-0.2.2-b3';
 const FILES = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'app.js', 'config.js', 'storage.js', 'device.js', 'camera.js', 'ui.js', 'calibration.js', 'settings.js',
-  'detection.js', 'detector.js', 'detect-worker.js', 'postprocess.js', 'overlay.js', 'perf.js', 'dettest.js',
+  'detection.js', 'detector.js', 'tracker.js', 'detect-worker.js', 'postprocess.js', 'overlay.js', 'perf.js', 'dettest.js',
   'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
 ];
 const ORT_PREFIX = '/npm/onnxruntime-web@1.20.1/';

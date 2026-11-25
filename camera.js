@@ -1,14 +1,19 @@
 // Rear camera, plus checks that the picture is really there.
 // Statuses: idle | starting | ok | blocked | frozen | denied | nocamera | inuse | error
-const PREFERRED = {
-  audio: false,
-  video: {
-    facingMode: { ideal: 'environment' },
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-    frameRate: { ideal: 30, max: 30 },
-  },
-};
+const QUALITY = { '480p': [854, 480], '720p': [1280, 720], '1080p': [1920, 1080] };
+
+function constraints(quality) {
+  const [width, height] = QUALITY[quality] || QUALITY['720p'];
+  return {
+    audio: false,
+    video: {
+      facingMode: { ideal: 'environment' },
+      width: { ideal: width },
+      height: { ideal: height },
+      frameRate: { ideal: 30, max: 30 },
+    },
+  };
+}
 
 const SAMPLE_W = 32;
 const SAMPLE_H = 18;
@@ -32,7 +37,7 @@ function mapError(err) {
   return 'error';
 }
 
-export function createCamera(video, onChange) {
+export function createCamera(video, onChange, getQuality = () => '720p') {
   let stream = null;
   let timer = null;
   let status = 'idle';
@@ -55,7 +60,7 @@ export function createCamera(video, onChange) {
 
   async function open() {
     try {
-      return await navigator.mediaDevices.getUserMedia(PREFERRED);
+      return await navigator.mediaDevices.getUserMedia(constraints(getQuality()));
     } catch (err) {
       if (err && (err.name === 'OverconstrainedError' || err.name === 'TypeError')) {
         return navigator.mediaDevices.getUserMedia({ video: true, audio: false });

@@ -1,25 +1,29 @@
 // Speed, timing, heat, and battery numbers for the Detection test.
+const STAGES = ['grab', 'prep', 'infer', 'post'];
+
 export function createPerf() {
   let pausedAt = 0;
   let pausedTotal = 0;
   let startT = 0;
   let total = 0;
   let sumMs = 0;
-  let sumModel = 0;
   let sumBoxes = 0;
+  let sumStage = zero();
   let buckets = new Map();
   let recent = [];
-  // Time that does not count the moments detection was paused.
-  const clock = () => performance.now() - pausedTotal - (pausedAt ? performance.now() - pausedAt : 0);
-
-  function newWin() { return { start: clock(), count: 0, sumMs: 0, sumBoxes: 0, buckets: new Map() }; }
-  let win = newWin();
   let heatState = 'unavailable';
   let battery = null;
 
+  function zero() { return { grab: 0, prep: 0, infer: 0, post: 0 }; }
+
+  // Time that does not count the moments detection was paused.
+  const clock = () => performance.now() - pausedTotal - (pausedAt ? performance.now() - pausedAt : 0);
+  const newWin = () => ({ start: clock(), count: 0, sumMs: 0, sumBoxes: 0, stage: zero(), buckets: new Map() });
+  let win = newWin();
+
   function reset() {
     startT = clock();
-    total = 0; sumMs = 0; sumModel = 0; sumBoxes = 0;
+    total = 0; sumMs = 0; sumBoxes = 0; sumStage = zero();
     buckets = new Map();
     recent = [];
     win = newWin();
@@ -30,15 +34,16 @@ export function createPerf() {
     if (pausedAt) { pausedTotal += performance.now() - pausedAt; pausedAt = 0; }
   }
 
-  // ms: whole round trip for one detection. modelMs: time inside the worker.
-  function record(ms, modelMs, boxes) {
-    const t = clock();
-    total += 1; sumMs += ms; sumModel += modelMs; sumBoxes += boxes;
-    recent.push(t);
-    const k = Math.floor((t - startT) / 1000);
-    buckets.set(k, (buckets.get(k) || 0) + 1);
+  // ms: whole round trip for one detection. t: { grab, prep, infer, post } in ms.
+  function record(ms, t, boxes) {
+    const now = clock();
+    total += 1; sumMs += ms; sumBoxes += boxes;
     win.count += 1; win.sumMs += ms; win.sumBoxes += boxes;
-    const wk = Math.floor((t - win.start) / 1000);
+    for (const s of STAGES) { sumStage[s] += t[s] || 0; win.stage[s] += t[s] || 0; }
+    recent.push(now);
+    const k = Math.floor((now - startT) / 1000);
+    buckets.set(k, (buckets.get(k) || 0) + 1);
+    const wk = Math.floor((now - win.start) / 1000);
     win.buckets.set(wk, (win.buckets.get(wk) || 0) + 1);
   }
 
@@ -50,16 +55,18 @@ export function createPerf() {
     return min;
   }
 
+  const avgStages = (sums, n) => Object.fromEntries(STAGES.map((s) => [s, n ? sums[s] / n : 0]));
+
   function snapshot() {
-    const t = clock();
-    while (recent.length && t - recent[0] > 2000) recent.shift();
-    const elapsed = (t - startT) / 1000;
+    const now = clock();
+    while (recent.length && now - recent[0] > 2000) recent.shift();
+    const elapsed = (now - startT) / 1000;
     return {
       fpsNow: recent.length / Math.max(0.5, Math.min(2, elapsed)),
       fpsAvg: elapsed > 0.5 ? total / elapsed : 0,
       fpsMin: minPerSecond(buckets, elapsed),
       msAvg: total ? sumMs / total : 0,
-      modelMsAvg: total ? sumModel / total : 0,
+      stage: avgStages(sumStage, total),
       boxesAvg: total ? sumBoxes / total : 0,
       total,
     };
@@ -73,6 +80,7 @@ export function createPerf() {
       fps: win.count / secs,
       min: minPerSecond(win.buckets, secs),
       msAvg: win.count ? win.sumMs / win.count : 0,
+      stage: avgStages(win.stage, win.count),
       boxesAvg: win.count ? win.sumBoxes / win.count : 0,
     };
     win = newWin();

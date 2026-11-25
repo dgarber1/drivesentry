@@ -16,6 +16,25 @@
 
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
+  // minScore can be one number, or { default: 0.45, person: 0.6, ... } for per-kind limits.
+  function thresholdsFor(minScore) {
+    if (typeof minScore === 'number') return KEEP.map(() => minScore);
+    const d = typeof minScore.default === 'number' ? minScore.default : 0.45;
+    return KEEP.map((k) => (typeof minScore[k[1]] === 'number' ? minScore[k[1]] : d));
+  }
+
+  // Rejects shapes that cannot be what the model says: a pole is not a person.
+  // h/w limits are in picture pixels. Sizes are in model-input pixels.
+  const MAX_H_OVER_W = { person: 4.2, bicycle: 2.5, motorcycle: 2.5, car: 1.9, truck: 1.9, bus: 1.9 };
+  const MIN_H_OVER_W = { person: 1.0 };
+  function plausible(label, w, h) {
+    if (h < 10 || w < 8) return false;
+    const r = h / w;
+    if (r > (MAX_H_OVER_W[label] || 3)) return false;
+    if (MIN_H_OVER_W[label] && r < MIN_H_OVER_W[label]) return false;
+    return true;
+  }
+
   function expectedRows(size) {
     return STRIDES.reduce((n, s) => n + (size / s) * (size / s), 0);
   }
@@ -32,7 +51,8 @@
     return max > 12;
   }
 
-  function candidates(data, size, minScore) {
+  function candidates(data, size, thr) {
+    const lowest = Math.min.apply(null, thr);
     const decoded = looksDecoded(data, size);
     const out = [];
     let row = 0;
@@ -42,14 +62,14 @@
         for (let gx = 0; gx < g; gx++, row++) {
           const b = row * FIELDS;
           const obj = data[b + 4];
-          if (!(obj >= minScore)) continue;           // score can't beat objectness
+          if (!(obj >= lowest)) continue;             // score can't beat objectness
           let best = 0;
           let bestK = -1;
           for (let k = 0; k < KEEP.length; k++) {
             const sc = obj * data[b + 5 + KEEP[k][0]];
-            if (sc > best) { best = sc; bestK = k; }
+            if (sc >= thr[k] && sc > best) { best = sc; bestK = k; }
           }
-          if (!(best >= minScore)) continue;
+          if (bestK < 0) continue;
           let cx, cy, w, h;
           if (decoded) {
             cx = data[b]; cy = data[b + 1]; w = data[b + 2]; h = data[b + 3];
@@ -99,7 +119,8 @@
       throw new Error('Unexpected model output shape (' + (dims ? dims.join('x') : data.length) +
         '). Expected ' + expectedRows(size) + ' rows of ' + FIELDS + ' numbers. Is this the YOLOX-Tiny file?');
     }
-    return nms(candidates(data, size, minScore))
+    return nms(candidates(data, size, thresholdsFor(minScore)))
+      .filter((c) => plausible(KEEP[c.k][1], c.x2 - c.x1, c.y2 - c.y1))
       .map((c) => ({
         label: KEEP[c.k][1],
         score: c.score,
@@ -108,5 +129,5 @@
       .filter((d) => d.box[2] - d.box[0] > 0.003 && d.box[3] - d.box[1] > 0.003);
   }
 
-  return { process, expectedRows, looksDecoded, nms, iou, KEEP, FIELDS, STRIDES };
+  return { process, expectedRows, looksDecoded, nms, iou, plausible, thresholdsFor, KEEP, FIELDS, STRIDES };
 });

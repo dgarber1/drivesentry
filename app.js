@@ -23,7 +23,7 @@ setVersionText(`Version ${VERSION} (${BUILD_LABEL})`);
 const camera = createCamera($('#cam'), (state) => {
   cameraState = state;
   refreshStatus();
-});
+}, () => settings.camera);
 
 // ---------- Vehicle detection ----------
 const perf = createPerf();
@@ -35,6 +35,7 @@ const detection = createDetection({
   video: $('#cam'),
   overlay,
   perf,
+  getModel: () => settings.model,
   // Detect only on the driving view and the test screen, and only with a good picture.
   shouldRun: () => ['camera', 'dettest'].includes(document.body.dataset.screen) && (!!fileTest || cameraState.status === 'ok'),
   onState: (s) => {
@@ -180,7 +181,17 @@ function openCalibration() {
 // ---------- Settings ----------
 const settingsScreen = initSettings({
   getSettings: () => settings,
-  updateSettings: (patch) => { settings = { ...settings, ...patch }; store.saveSettings(settings); },
+  updateSettings: (patch) => {
+    const prev = settings;
+    settings = { ...settings, ...patch };
+    store.saveSettings(settings);
+    // Model and camera quality take effect right away, and restart the numbers.
+    if (patch.model && patch.model !== prev.model) { detection.setModel(patch.model); perf.reset(); }
+    if (patch.camera && patch.camera !== prev.camera) {
+      perf.reset();
+      if (!fileTest && camera.getStatus() !== 'idle') camera.start();
+    }
+  },
   getInfo: () => {
     const d = device.describeDevice();
     const cameraText = {
@@ -190,11 +201,12 @@ const settingsScreen = initSettings({
     const s = cameraState.sample;
     const ds = detection.getState();
     const fps = Math.round(ds.fps);
+    const modelLabel = ds.model === 'nano' ? 'Nano' : 'Tiny';
     const detectionText = ({
       off: 'Off',
       loading: 'Loading the model…',
-      running: `Running at ${fps} per second (${ds.backend})`,
-      slow: `Slow, ${fps} per second (${ds.backend})`,
+      running: `Running at ${fps} per second (${ds.backend}, ${modelLabel})`,
+      slow: `Slow, ${fps} per second (${ds.backend}, ${modelLabel})`,
       failed: `Failed: ${ds.reason}`,
     })[ds.phase] || 'Off';
     return {
@@ -248,6 +260,7 @@ async function exitFileTest() {
 const dettest = initDetTest({
   perf,
   getDetection: () => detection.getState(),
+  getSettings: () => settings,
   isFileMode: () => !!fileTest,
   getFileName: () => (fileTest ? fileTest.name : ''),
   onPickFile: enterFileTest,
